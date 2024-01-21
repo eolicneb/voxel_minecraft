@@ -19,12 +19,12 @@ def normalize(vector):
 
 
 @njit
-def normalize_vectors(forward: np.array, yaw, pitch):
-    forward[0] = math.cos(yaw) * math.cos(pitch)
-    forward[1] = math.sin(pitch)
-    forward[2] = math.sin(yaw) * math.cos(pitch)
+def normalize_vectors(yaw, pitch):
+    x = math.cos(yaw) * math.cos(pitch)
+    y = math.sin(pitch)
+    z = math.sin(yaw) * math.cos(pitch)
 
-    forward = normalize(forward)
+    forward = normalize(np.array((x, y, z), dtype=np.float64))
     right = normalize(np.cross(forward, np.array((0, 1, 0))))
     up = normalize(np.cross(right, forward))
     return up, right, forward
@@ -33,8 +33,8 @@ def normalize_vectors(forward: np.array, yaw, pitch):
 class Mobile:
     def __init__(self, position, yaw, pitch):
         self.position = glm.vec3(position)
-        self.yaw = glm.radians(yaw)
-        self.pitch = glm.radians(pitch)
+        self.yaw = yaw
+        self.pitch = pitch
 
         self.up = glm.vec3(0, 1, 0)
         self.right = glm.vec3(1, 0, 0)
@@ -63,8 +63,19 @@ class Mobile:
         self.update_vectors()
 
     def update_vectors(self):
-        self.up, self.right, forward = normalize_vectors(np.array(self.forward, dtype=np.float64), self.yaw, self.pitch)
+        up, right, forward = normalize_vectors(self.yaw, self.pitch)
+        self.up = glm.vec3(up)
+        self.right = glm.vec3(right)
         self.forward = glm.vec3(forward)
+
+    # def update_vectors(self):
+    #     self.forward.x = glm.cos(self.yaw) * glm.cos(self.pitch)
+    #     self.forward.y = glm.sin(self.pitch)
+    #     self.forward.z = glm.sin(self.yaw) * glm.cos(self.pitch)
+    #
+    #     self.forward = glm.normalize(self.forward)
+    #     self.right = glm.normalize(glm.cross(self.forward, glm.vec3(0, 1, 0)))
+    #     self.up = glm.normalize(glm.cross(self.right, self.forward))
 
     def rotate_pitch(self, delta_y):
         self.pitch -= delta_y
@@ -95,6 +106,9 @@ class Mobile:
         self.position = copy(other.position)
         self.yaw = other.yaw
         self.pitch = other.pitch
+        self.forward = other.forward
+        self.right = other.right
+        self.up = other.up
 
     def __add__(self, other: Mobile):
         new_obj = self.copy()
@@ -151,12 +165,37 @@ class Movable:
 
 
 if __name__ == "__main__":
+    n = normalize(np.array((1., 1., 1.)))
+    assert np.linalg.norm(n) == 1.0
+
+    _, _, forward = normalize_vectors(0, 0)
+    assert forward.dot(np.array((1, 0, 0))) == 1.
+
+    _, _, forward = normalize_vectors(np.pi/2, 0)
+    assert forward.dot(np.array((0, 0, 1))) == 1.
+
+    _, right, forward = normalize_vectors(np.pi/4, 0)
+    assert forward.dot(np.array((0, 0, 1))) == right.dot(np.array((0, 0, 1)))
+
+    pos = Mobile(glm.vec3(1, 1, 1), glm.radians(-90), 0)
+
     accel = Mobile(glm.vec3(1, -1, 0), 0.5, 0.1)
-    movable = Movable(accel=accel)
-    initial = movable.copy()
+    initial = Movable(position=pos, accel=accel)
+
+    movable = initial.copy()
     movable.set_tick(0.1)
     movable.update()
     assert movable.position == initial.position
     movable.update()
     assert not movable.position == initial.position
     assert movable.position.y < initial.position.y
+
+    movable = initial.copy()
+    movable.set_tick(0.1)
+    movable.position.rotate_yaw(1.0)
+    assert movable.position.yaw == initial.position.yaw + 1.0, "before update"
+    initial.update()
+    assert movable.position.yaw == initial.position.yaw + 1.0, "after update initial"
+    movable.update()
+    assert movable.position.yaw == initial.position.yaw + 1.0, "after update movable"
+    assert sum(movable.position.forward * movable.position.right) == 0.0

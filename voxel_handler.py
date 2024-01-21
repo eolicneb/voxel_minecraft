@@ -78,9 +78,9 @@ class VoxelHandler:
 
     def ray_cast(self):
         # start point
-        x1, y1, z1 = self.app.player.position
+        x1, y1, z1 = self.app.player.position.position
         # end position
-        x2, y2, z2 = self.app.player.position + self.app.player.forward * MAX_RAY_DIST
+        x2, y2, z2 = self.app.player.position.position + self.app.player.position.forward * MAX_RAY_DIST
 
         current_voxel_pos = glm.ivec3(x1, y1, z1)
         self.voxel_id = 0

@@ -5,12 +5,12 @@ class ShaderProgram:
     def __init__(self, app):
         self.app = app
         self.ctx = app.ctx
-        self.camera = app.player
+        self.camera = app.player.camera
         # ------- shaders ------- #
         self.chunk = self.get_program(shader_name='chunk')
-        self.voxel_marker = self.get_program(shader_name='voxel_marker')
         self.water = self.get_program(shader_name='water')
         self.bedrock = self.get_program(shader_name='bedrock')
+        self.voxel_marker = self.get_program(shader_name='voxel_marker')
         # ----------------------- #
         self.set_uniforms_on_init()
 
