@@ -9,6 +9,12 @@ WIN_RES = glm.vec2(1600, 900)
 # world generation
 SEED = 18
 
+# global axis
+X = glm.vec3(1, 0, 0)
+Y = glm.vec3(0, 1, 0)
+Z = glm.vec3(0, 0, 1)
+FORWARD, UP, RIGHT = X, Y, Z
+
 # ray casting
 MAX_RAY_DIST = 6
 

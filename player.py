@@ -7,7 +7,10 @@ from settings import *
 class Player(Movable):
     def __init__(self, app, position=PLAYER_POS, yaw=-90, pitch=0):
         self.app = app
-        super().__init__(position=Mobile(position, glm.radians(yaw), glm.radians(pitch)))
+        super().__init__(
+            position=Mobile(position, glm.radians(yaw), glm.radians(pitch)),
+            # accel=Mobile(glm.vec3(0, -0.000006, 0), 0, 0)
+        )
         self.camera = Camera(self.position)
 
     def update(self):

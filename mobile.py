@@ -4,78 +4,54 @@ from copy import copy
 from settings import *
 
 
-@njit
-def normalize(vector):
-    # Compute the magnitude of the vector
-    mag = np.linalg.norm(vector)
-
-    # Check if the magnitude is nonzero
-    if mag != 0:
-        # Divide each component by the magnitude to get the normalized vector
-        return vector / mag
-    else:
-        # Return a zero vector (which is already normalized)
-        return np.zeros_like(vector)
-
-
-@njit
-def normalize_vectors(yaw, pitch):
-    x = math.cos(yaw) * math.cos(pitch)
-    y = math.sin(pitch)
-    z = math.sin(yaw) * math.cos(pitch)
-
-    forward = normalize(np.array((x, y, z), dtype=np.float64))
-    right = normalize(np.cross(forward, np.array((0, 1, 0))))
-    up = normalize(np.cross(right, forward))
-    return up, right, forward
-
-
 class Mobile:
     def __init__(self, position, yaw, pitch):
-        self.position = glm.vec3(position)
+        self.location = glm.vec3(position)
         self.yaw = yaw
         self.pitch = pitch
 
-        self.up = glm.vec3(0, 1, 0)
-        self.right = glm.vec3(1, 0, 0)
-        self.forward = glm.vec3(0, 0, 1)
+        self._rot = glm.mat4()
+
+    def update_rotation(self):
+        rot = glm.mat4(1.0)
+        rot = glm.rotate(rot, self.yaw, -Y)
+        rot = glm.rotate(rot, self.pitch, Z)
+        self._rot = rot
 
     @property
     def x(self):
-        return self.position.x
+        return self.location.x
 
     @property
     def y(self):
-        return self.position.y
+        return self.location.y
 
     @property
     def z(self):
-        return self.position.z
+        return self.location.z
+
+    @property
+    def forward(self):
+        return self._rot[0].xyz
+
+    @property
+    def right(self):
+        return self._rot[2].xyz
+
+    @property
+    def up(self):
+        return self._rot[1].xyz
 
     def copy(self):
-        new_obj = self.__class__(copy(self.position), self.yaw, self.pitch)
-        new_obj.up = self.up
-        new_obj.right = self.right
-        new_obj.forward = self.forward
+        new_obj = self.__class__(copy(self.location), self.yaw, self.pitch)
+        new_obj._rot = self._rot
         return new_obj
 
     def update(self):
-        self.update_vectors()
+        self.update_rotation()
 
-    def update_vectors(self):
-        up, right, forward = normalize_vectors(self.yaw, self.pitch)
-        self.up = glm.vec3(up)
-        self.right = glm.vec3(right)
-        self.forward = glm.vec3(forward)
-
-    # def update_vectors(self):
-    #     self.forward.x = glm.cos(self.yaw) * glm.cos(self.pitch)
-    #     self.forward.y = glm.sin(self.pitch)
-    #     self.forward.z = glm.sin(self.yaw) * glm.cos(self.pitch)
-    #
-    #     self.forward = glm.normalize(self.forward)
-    #     self.right = glm.normalize(glm.cross(self.forward, glm.vec3(0, 1, 0)))
-    #     self.up = glm.normalize(glm.cross(self.right, self.forward))
+    def rotate(self, vec: glm.vec3):
+        return (self._rot * vec).xyz
 
     def rotate_pitch(self, delta_y):
         self.pitch -= delta_y
@@ -85,37 +61,34 @@ class Mobile:
         self.yaw += delta_x
 
     def move_left(self, velocity):
-        self.position -= self.right * velocity
+        self.location -= self.right * velocity
 
     def move_right(self, velocity):
-        self.position += self.right * velocity
+        self.location += self.right * velocity
 
     def move_up(self, velocity):
-        self.position += self.up * velocity
+        self.location += self.up * velocity
 
     def move_down(self, velocity):
-        self.position -= self.up * velocity
+        self.location -= self.up * velocity
 
     def move_forward(self, velocity):
-        self.position += self.forward * velocity
+        self.location += self.forward * velocity
 
     def move_back(self, velocity):
-        self.position -= self.forward * velocity
+        self.location -= self.forward * velocity
 
     def set_from(self, other):
-        self.position = copy(other.position)
+        self.location = copy(other.location)
         self.yaw = other.yaw
         self.pitch = other.pitch
-        self.forward = other.forward
-        self.right = other.right
-        self.up = other.up
+        self._rot = other._rot
 
     def __add__(self, other: Mobile):
         new_obj = self.copy()
-        new_obj.position += other.position
+        new_obj.location += other.location
         new_obj.yaw += other.yaw
         new_obj.pitch += other.pitch
-        new_obj.update()
         return new_obj
 
     def __iadd__(self, other):
@@ -125,10 +98,9 @@ class Mobile:
 
     def __mul__(self, other):
         new_obj = self.copy()
-        new_obj.position *= other
+        new_obj.location *= other
         new_obj.yaw *= other
         new_obj.pitch *= other
-        new_obj.update()
         return new_obj
 
     def __imul__(self, other):
@@ -137,7 +109,7 @@ class Mobile:
         return self
 
     def __eq__(self, other):
-        return self.position == other.position and self.yaw == other.yaw and self.pitch == other.pitch
+        return self.location == other.location and self.yaw == other.yaw and self.pitch == other.pitch
 
 
 class Movable:
@@ -155,6 +127,9 @@ class Movable:
         self.position += self.velocity * self.delta_t
         self.velocity += self.accel * self.delta_t
         self.position.pitch = glm.clamp(self.position.pitch, -PITCH_MAX, PITCH_MAX)
+        self.position.update()
+        self.velocity.update()
+        self.accel.update()
 
     def copy(self):
         new_obj = Movable(position=self.position.copy(),
@@ -164,19 +139,31 @@ class Movable:
         return new_obj
 
 
+@njit
+def engross(pos: Mobile, h_size: glm.vec3
+            ) -> list[glm.vec3]:
+    offsets = [(1, -1, 1), (-1, -1, 1), (-1, -1, -1), (1, -1, 1),
+               (1, 1, 1), (-1, 1, 1), (-1, 1, -1), (1, 1, 1)]
+    vertices = np.array(offsets, dtype=np.float32)
+    return vertices * h_size + pos
+
+
+class Crushable:
+    def __init__(self, movable, dimensions):
+        self.position = movable.location
+        self.movable = movable
+        self.dimensions = dimensions  # (depth, height, width)
+        self._h_dim = glm.vec3(*(x/2 for x in self.dimensions))
+
+    def vertices(self):
+        displace = self.movable.location.rotate(self._h_dim).xyz
+        offsets = [(1, -1, 1), (-1, -1, 1), (-1, -1, -1), (1, -1, 1),
+                   (1, 1, 1), (-1, 1, 1), (-1, 1, -1), (1, 1, 1)]
+        return [displace * offset + self.movable.location.location
+                for offset in offsets]
+
+
 if __name__ == "__main__":
-    n = normalize(np.array((1., 1., 1.)))
-    assert np.linalg.norm(n) == 1.0
-
-    _, _, forward = normalize_vectors(0, 0)
-    assert forward.dot(np.array((1, 0, 0))) == 1.
-
-    _, _, forward = normalize_vectors(np.pi/2, 0)
-    assert forward.dot(np.array((0, 0, 1))) == 1.
-
-    _, right, forward = normalize_vectors(np.pi/4, 0)
-    assert forward.dot(np.array((0, 0, 1))) == right.dot(np.array((0, 0, 1)))
-
     pos = Mobile(glm.vec3(1, 1, 1), glm.radians(-90), 0)
 
     accel = Mobile(glm.vec3(1, -1, 0), 0.5, 0.1)
@@ -199,3 +186,11 @@ if __name__ == "__main__":
     movable.update()
     assert movable.position.yaw == initial.position.yaw + 1.0, "after update movable"
     assert sum(movable.position.forward * movable.position.right) == 0.0
+
+    # Test crushable
+    pos_0 = glm.vec3(1, 1, 1)
+    size = glm.vec3(2, 4, 1)
+    crush = Crushable(Movable(Mobile(pos_0, glm.radians(90), glm.radians(45))), size)
+    vertices = crush.vertices()
+    assert glm.l2Norm(vertices[0] - vertices[6]) == glm.l2Norm(size)
+    assert glm.l2Norm(glm.cross(crush.movable.location.forward, vertices[0] - vertices[1])) == 0.0

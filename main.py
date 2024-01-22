@@ -45,7 +45,9 @@ class VoxelEngine:
 
         self.delta_time = self.clock.tick()
         self.time = pg.time.get_ticks() * 0.001
-        pg.display.set_caption(f'{self.clock.get_fps():5.0f} FPS')
+        pg.display.set_caption(f'{self.clock.get_fps():5.0f} FPS '
+                               f' yaw={self.player.position.yaw:7.5f}'
+                               f' right={self.player.position.right}')
 
     def render(self):
         self.ctx.clear(color=BG_COLOR)
