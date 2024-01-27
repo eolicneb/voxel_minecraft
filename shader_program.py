@@ -1,3 +1,6 @@
+from typing import Callable
+from moderngl import Program
+
 from settings import *
 
 
@@ -11,8 +14,26 @@ class ShaderProgram:
         self.water = self.get_program(shader_name='water')
         self.bedrock = self.get_program(shader_name='bedrock')
         self.voxel_marker = self.get_program(shader_name='voxel_marker')
+        self.meshes = {}
         # ----------------------- #
         self.set_uniforms_on_init()
+
+    def subscribe_mesh(self,
+                       shader_name: str,
+                       texture: int = None,
+                       texture_array: int = None,
+                       uniforms_callback: Callable[[str, Program, 'ShaderProgram'], None] = None):
+        shader = self.meshes[shader_name] = self.get_program(shader_name=shader_name)
+        # set uniforms
+        shader['m_proj'].write(self.camera.m_proj)
+        shader['m_model'].write(glm.mat4())
+        shader['bg_color'].write(BG_COLOR)
+        if texture is not None:
+            shader['u_texture_0'] = texture
+        if texture_array is not None:
+            shader['u_texture_array_0'] = texture_array
+        if uniforms_callback is not None:
+            uniforms_callback(shader_name, shader, self)
 
     def set_uniforms_on_init(self):
         # chunk
@@ -42,6 +63,8 @@ class ShaderProgram:
         self.voxel_marker['m_view'].write(self.camera.m_view)
         self.water['m_view'].write(self.camera.m_view)
         self.bedrock['m_view'].write(self.camera.m_view)
+        for shader in self.meshes.values():
+            shader['m_view'].write(self.camera.m_view)
 
     def get_program(self, shader_name):
         with open(f'shaders/{shader_name}.vert') as file:
