@@ -31,6 +31,10 @@ class Mobile:
         return self.location.z
 
     @property
+    def norm(self):
+        return glm.l2Norm(self.location)
+
+    @property
     def forward(self):
         return self._rot[0].xyz
 
@@ -86,9 +90,15 @@ class Mobile:
 
     def __add__(self, other: Mobile):
         new_obj = self.copy()
-        new_obj.location += other.location
-        new_obj.yaw += other.yaw
-        new_obj.pitch += other.pitch
+        if isinstance(other, Mobile):
+            new_obj.yaw += other.yaw
+            new_obj.pitch += other.pitch
+            new_obj.location += other.location
+        else:
+            x, y, z = other
+            new_obj.location.x += x
+            new_obj.location.y += y
+            new_obj.location.z += z
         return new_obj
 
     def __iadd__(self, other):
@@ -111,6 +121,12 @@ class Mobile:
     def __eq__(self, other):
         return self.location == other.location and self.yaw == other.yaw and self.pitch == other.pitch
 
+    def __iter__(self):
+        return iter((self.location.x, self.location.y, self.location.z))
+
+    def __str__(self):
+        return f"<{self.x:5.1f}, {self.y:5.1f}, {self.z:5.1f} | yaw: {self.yaw:5.1f}, pitch: {self.pitch:5.1f}>"
+
 
 class Movable:
     def __init__(self, position: Mobile = None, velocity: Mobile = None, accel: Mobile = None):
@@ -119,6 +135,16 @@ class Movable:
         self.accel = accel if accel is not None else Mobile(glm.vec3(0, 0, 0), 0, 0)
 
         self.delta_t: float = 0
+
+    def __str__(self):
+        obj_str = f"<{self.__class__.__name__}"
+        obj_str += f"\n  position: {self.position}"
+        obj_str += f"\n  velocity: {self.velocity}"
+        obj_str += f"\n  accel: {self.accel}\n>"
+        return obj_str
+
+    def speed_forward(self, vel_vector):
+        self.velocity.location = self.position.rotate(vel_vector)
 
     def set_tick(self, delta_t: float):
         self.delta_t = delta_t
@@ -150,24 +176,32 @@ def engross(pos: Mobile, h_size: glm.vec3
 
 class Crushable:
     def __init__(self, movable, dimensions):
-        self.position = movable.location
+        self.position = movable.position
         self.movable = movable
         self.dimensions = dimensions  # (depth, height, width)
         self._h_dim = glm.vec3(*(x/2 for x in self.dimensions))
 
     def vertices(self):
-        displace = self.movable.location.rotate(self._h_dim).xyz
+        displace = self.position.rotate(self._h_dim).xyz
         offsets = [(1, -1, 1), (-1, -1, 1), (-1, -1, -1), (1, -1, 1),
                    (1, 1, 1), (-1, 1, 1), (-1, 1, -1), (1, 1, 1)]
-        return [displace * offset + self.movable.location.location
+        return [self.position.location + displace * offset
                 for offset in offsets]
 
 
 if __name__ == "__main__":
     pos = Mobile(glm.vec3(1, 1, 1), glm.radians(-90), 0)
+    for coord in pos:
+        assert coord == 1
 
     accel = Mobile(glm.vec3(1, -1, 0), 0.5, 0.1)
     initial = Movable(position=pos, accel=accel)
+
+    # test speed_forward
+    initial.position.rotate_yaw(1.0)
+    for _ in range(5):
+        initial.speed_forward(glm.vec3(1, 1, 1))
+        print(initial.velocity)
 
     movable = initial.copy()
     movable.set_tick(0.1)
@@ -193,4 +227,4 @@ if __name__ == "__main__":
     crush = Crushable(Movable(Mobile(pos_0, glm.radians(90), glm.radians(45))), size)
     vertices = crush.vertices()
     assert glm.l2Norm(vertices[0] - vertices[6]) == glm.l2Norm(size)
-    assert glm.l2Norm(glm.cross(crush.movable.location.forward, vertices[0] - vertices[1])) == 0.0
+    assert glm.l2Norm(glm.cross(crush.position.forward, vertices[0] - vertices[1])) == 0.0

@@ -45,6 +45,8 @@ class ChunkMesh(BaseMesh):
         self.update_vao()
 
     def get_vertex_data(self):
+        if not settings.SEE_THROUGH_BLOCKS:
+            return
         solid, see_through = build_chunk_mesh(
             chunk_voxels=self.chunk.voxels,
             format_size=self.format_size,

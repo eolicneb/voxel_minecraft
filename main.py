@@ -1,3 +1,4 @@
+from physics import PhysicsEngine
 from settings import *
 import moderngl as mgl
 import pygame as pg
@@ -37,17 +38,19 @@ class VoxelEngine:
         self.player = Player(self)
         self.shader_program = ShaderProgram(self)
         self.scene = Scene(self)
+        self.physics = PhysicsEngine(self.scene.world)
+        self.physics.register_movable(self.player)
 
     def update(self):
-        self.player.update()
+        self.physics.update()
         self.shader_program.update()
         self.scene.update()
 
         self.delta_time = self.clock.tick()
         self.time = pg.time.get_ticks() * 0.001
         pg.display.set_caption(f'{self.clock.get_fps():5.0f} FPS '
-                               f' yaw={self.player.position.yaw:7.5f}'
-                               f' right={self.player.position.right}')
+                               f' player is_standing: {self.player.action_controller.is_standing}'
+                               f' [{self.player.accel.y}]')
 
     def render(self):
         self.ctx.clear(color=BG_COLOR)
@@ -58,7 +61,7 @@ class VoxelEngine:
         for event in pg.event.get():
             if event.type == pg.QUIT or (event.type == pg.KEYDOWN and event.key == pg.K_ESCAPE):
                 self.is_running = False
-            self.player.handle_event(event=event)
+            self.physics.handle_event(event=event)
 
     def run(self):
         while self.is_running:
