@@ -33,3 +33,26 @@ class Frustum:
             return False
 
         return True
+
+    def point_is_on_frustum(self, point, radius):
+        # vector to sphere center
+        sphere_vec = point - self.cam.location
+
+        # outside the NEAR and FAR planes?
+        sz = glm.dot(sphere_vec, self.cam.forward)
+        if not (NEAR - radius <= sz <= FAR + radius):
+            return False
+
+        # outside the TOP and BOTTOM planes?
+        sy = glm.dot(sphere_vec, self.cam.up)
+        dist = self.factor_y * radius + sz * self.tan_y
+        if not (-dist <= sy <= dist):
+            return False
+
+        # outside the LEFT and RIGHT planes?
+        sx = glm.dot(sphere_vec, self.cam.right)
+        dist = self.factor_x * radius + sz * self.tan_x
+        if not (-dist <= sx <= dist):
+            return False
+
+        return True

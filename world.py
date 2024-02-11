@@ -7,7 +7,7 @@ from voxel_handler import VoxelHandler
 
 
 class Cache:
-    def __init__(self, cache_file_name: str):
+    def __init__(self, cache_file_name: str = None):
         self.file = cache_file_name and Path(cache_file_name + ".pkl")
 
     def save(self, obj):

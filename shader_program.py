@@ -20,10 +20,17 @@ class ShaderProgram:
 
     def subscribe_mesh(self,
                        shader_name: str,
+                       *,
                        texture: int = None,
                        texture_array: int = None,
+                       vertex_shader=None,
+                       fragment_shader=None,
                        uniforms_callback: Callable[[str, Program, 'ShaderProgram'], None] = None):
-        shader = self.meshes[shader_name] = self.get_program(shader_name=shader_name)
+
+        if shader_name in self.meshes:
+            return self.meshes[shader_name]
+
+        shader = self.meshes[shader_name] = self.get_program(shader_name, vertex_shader, fragment_shader)
         # set uniforms
         shader['m_proj'].write(self.camera.m_proj)
         shader['m_model'].write(glm.mat4())
@@ -34,6 +41,7 @@ class ShaderProgram:
             shader['u_texture_array_0'] = texture_array
         if uniforms_callback is not None:
             uniforms_callback(shader_name, shader, self)
+        return shader
 
     def set_uniforms_on_init(self):
         # chunk
@@ -66,12 +74,14 @@ class ShaderProgram:
         for shader in self.meshes.values():
             shader['m_view'].write(self.camera.m_view)
 
-    def get_program(self, shader_name):
-        with open(f'shaders/{shader_name}.vert') as file:
-            vertex_shader = file.read()
+    def get_program(self, shader_name, vertex_shader=None, fragment_shader=None):
+        if not vertex_shader:
+            with open(f'shaders/{shader_name}.vert') as file:
+                vertex_shader = file.read()
 
-        with open(f'shaders/{shader_name}.frag') as file:
-            fragment_shader = file.read()
+        if not fragment_shader:
+            with open(f'shaders/{shader_name}.frag') as file:
+                fragment_shader = file.read()
 
         program = self.ctx.program(vertex_shader=vertex_shader, fragment_shader=fragment_shader)
         return program

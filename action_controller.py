@@ -55,7 +55,7 @@ class ActionController:
     def update(self):
         if not self.is_standing:
             if self.is_swimming:
-                print(self.movable.velocity, self.movable.accel)
+                # print(self.movable.velocity, self.movable.accel)
                 self.movable.accel.location = self.movable.velocity.location * (-.001, -.001, -.001)
                 self.movable.accel.location.y = GRAVITY_ACCEL * (1 - self.buoyancy)
             elif not self.is_flying:

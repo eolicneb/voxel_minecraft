@@ -1,3 +1,5 @@
+from mobile import Mobile
+from mobs.bird import Bird
 from physics import PhysicsEngine
 from settings import *
 import moderngl as mgl
@@ -37,16 +39,21 @@ class VoxelEngine:
         self.textures = Textures(self)
         self.player = Player(self)
         self.shader_program = ShaderProgram(self)
+        self.bird = Bird(self)
         self.scene = Scene(self)
         self.physics = PhysicsEngine(self.scene.world)
+
         self.physics.register_movable(self.player)
+        self.scene.register_mob(self.bird.identifier, self.bird)
+        self.physics.register_movable(self.bird.movable)
 
     def update(self):
+        self.delta_time = self.clock.tick()
+
         self.physics.update()
         self.shader_program.update()
         self.scene.update()
 
-        self.delta_time = self.clock.tick()
         self.time = pg.time.get_ticks() * 0.001
         pg.display.set_caption(f'{self.clock.get_fps():5.0f} FPS '
                                f' player is_standing: {self.player.action_controller.is_standing}'
@@ -55,6 +62,7 @@ class VoxelEngine:
     def render(self):
         self.ctx.clear(color=BG_COLOR)
         self.scene.render()
+        # self.bird.render()
         pg.display.flip()
 
     def handle_events(self):

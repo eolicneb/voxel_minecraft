@@ -28,6 +28,7 @@ class Player(Movable):
         self.action_controller.update()
         old_pos = self.position.copy()
         self.keyboard_speed_control()
+        # self.keyboard_control()
         self.mouse_control()
         self.set_tick(self.app.delta_time)
         super().update()
