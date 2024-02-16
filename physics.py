@@ -15,11 +15,10 @@ class PhysicsEngine:
         self.movables.add(movable)
 
     def update_movable(self, movable):
+        movable.set_tick(self.world.app.delta_time)
         old_pos = movable.position.copy()
         movable.update()
         self.allow_movement(movable, old_pos)
-        if hasattr(movable, "camera"):
-            movable.camera.update()
 
     def update(self):
         for movable in self.movables:
@@ -35,6 +34,7 @@ class PhysicsEngine:
         try:
             if old_pos.location.y > HEIGHT_LIMIT:
                 movable.position.location.y = HEIGHT_LIMIT
+                movable.velocity.location.y = 0
                 movable.action_controller.is_standing = False
                 return
 
@@ -75,11 +75,11 @@ class PhysicsEngine:
                         break
 
             dist_to_ground, block = self.distance_to_ground(*new_pos.location)
-            if dist_to_ground is not None and dist_to_ground < AVOIDANCE + 0.1:
+            if dist_to_ground is not None and dist_to_ground < AVOIDANCE:
                 old_velocity = movable.velocity.copy()
-                if old_velocity.norm > 10 and False:
-                    movable.velocity.location *= (.5, -.5, .5)
-                else:
+                if old_velocity.location.y < 0:
+                    if old_velocity.norm > PLAYER_JUMP_VEL * 3:
+                        movable.velocity.location *= (.5, -.1, .5)
                     movable.velocity.location.y = 0
                     movable.action_controller.stand_on_ground()
             else:

@@ -1,4 +1,5 @@
 from copy import copy
+from enum import Enum
 from functools import cached_property
 from uuid import uuid4
 
@@ -7,42 +8,90 @@ import pygame as pg
 from action_controller import ActionController
 from meshes.base_mesh import BaseMesh
 from meshes.utils import *
-from mobile import Movable
+from mobile import Movable, Mobile
+from mobs.base import Mob
 from settings import *
+from events import *
+
+import random
 
 
-class Bird:
+class Bird(Mob):
+    max_count = WORLD_AREA
+    count = 0
+
     def __init__(self, app, identifier=None, position=None, velocity=None, accel=None):
         self.identifier = identifier or f"{self.__class__.__name__}-{uuid4().hex[-12:]}"
         self.app = app
+
+        self.size = 7.0
         self.soul = BirdSoul(self)
-        self.mesh = BirdMesh(self)
         self.movable = BirdMovable(self, position, velocity, accel)
+        self.mesh = BirdMesh(self)
+
+        self.birth_date = copy(self.app.time)
+
+    @classmethod
+    def spawn(cls, app):
+        if cls.max_count and cls.max_count <= cls.count:
+            return
+        if random.random() < .01 * app.delta_time:
+            pos = random.randint(0, CHUNK_SIZE*WORLD_D), CHUNK_SIZE*WORLD_H, random.randint(0, CHUNK_SIZE*WORLD_W), random.randint(1, 360)
+            bird = Bird(app, position=Mobile(pos[:3], pos[-1] * 3.14/180, 0))
+            cls.count += 1
+            return bird
 
     def on_init(self):
         self.soul.on_init()
         self.mesh.on_init()
+        self.is_alive = True
+
+    def on_delete(self):
+        self.__class__.count -= 1
 
     def handle_event(self, event):
+        if not self.is_alive:
+            return
         self.soul.handle_event(event)
         self.movable.handle_event(event)
 
     def update(self):
+        if not self.is_alive:
+            return
         self.soul.update()
         self.mesh.update()
 
     def render(self):
-        if self.app.player.camera.frustum.point_is_on_frustum(self.movable.position.location, 1.0):
+        if not self.is_alive:
+            return
+        if self.app.player.camera.frustum.point_is_on_frustum(self.movable.position.location, self.size):
             self.mesh.render()
 
     def render_see_through(self):
+        if not self.is_alive:
+            return
         self.mesh.render_see_through()
+
+    @property
+    def age(self):
+        return self.app.time - self.birth_date
+
+    def die(self):
+        if not self.is_alive:
+            return
+        self.is_alive = False
+        self.app.publish_event(MobDied(self))
 
 
 class BirdSoul:
     def __init__(self, mob):
         self.mob = mob
-        self.folks = {}
+
+    class States(Enum):
+        soaring = 0
+        flapping = 1
+        turning_left = 2
+        turning_right = 3
 
     def on_init(self):
         pass
@@ -51,14 +100,11 @@ class BirdSoul:
         pass
 
     def update(self):
-        # self.mob.movable.speed_forward(PLAYER_SPEED * glm.vec3(1, 0, 0))
-        # self.mob.movable.position.location.y = CHUNK_SIZE * 2
-        # self.mob.movable.position.pitch += 0.1
-        # self.mob.movable.position.yaw += 0.1
-        # self.mob.movable.update()
-        # print(self.mob.movable.position)
-        self.mob.movable.position.location = glm.vec3(10, 5, 10)
-        self.mob.movable.position.location.y += 10
+        if self.mob.age > 10:
+            self.die()
+        self.mob.movable.speed_forward(PLAYER_SPEED * glm.vec3(10, 0, 0))
+        self.mob.movable.position.yaw += self.mob.app.delta_time * 0.0005
+        self.mob.movable.position.pitch = glm.sin(self.mob.app.time*2) * .03
 
     def spawn(self):
         pass
@@ -67,7 +113,7 @@ class BirdSoul:
         pass
 
     def die(self):
-        pass
+        self.mob.die()
 
 
 class BirdMesh(BaseMesh):
@@ -132,25 +178,26 @@ void main() {
         self.update_vao()
 
     def get_vertex_data(self):
-        p = 10
+        p = self.mob.size
         body = [
-            (0.5, 0.0, 0.0), (-.2, 0.0, 0.0), (0.0, 0.1, .05),
-            (0.0, .01, 0.0), (-.5, .01, 0.0), (-.45, 0.1, 0.2)
+            # (0.5, 0.0, 0.0), (-.2, 0.0, 0.0), (0.0, 0.1, .05),
+            # (0.0, .01, 0.0), (-.5, .01, 0.0), (-.45, 0.1, 0.2)
         ]
         wing = [
-            (0.1, .05, 0.0), (-.1, .05, 0.0), (0.0, 0.1, 1.0)
+            (-.1, .05, 0.0), (0.1, .05, 0.0), (0.0, 0.1, 1.0)
         ]
         vertices = [*body, *wing]
+        # vertices = [self._rotate(point) for point in vertices]
+        vertices = [tuple(p * point for point in triangs) for triangs in vertices]
         vertices += list(reflex(vertices, (0, 0, 1)))
         vertices += list(invert_triangles(*vertices))
-        vertices = [tuple(p * c for c in verts) for verts in vertices]
 
         body_uv = [
-            (.5, 0), (.5, .8), (.6, .3),
-            (.5, .5), (.5, 1), (.7, 1)
+            # (.5, 0), (.5, .8), (.6, .3),
+            # (.5, .5), (.5, 1), (.7, 1)
         ]
         wing_uv = [
-            (1., .3), (.6, .3), (1., 1)
+            (1., .35), (.6, .35), (1., 1)
         ]
         uv = [*body_uv, *wing_uv]
         uv += list(reflex(uv, (1, 0), (.5, .5)))
@@ -159,13 +206,8 @@ void main() {
         vertex_data = np.hstack([vertices, uv], dtype='float32')
         return vertex_data
 
-    def get_model_matrix(self):
-        m_model = glm.translate(glm.mat4(), self.mob.movable.position.location)
-        m_model = self.mob.movable.position._rot * m_model
-        return m_model
-
     def set_uniform(self):
-        self.program['m_model'].write(self.get_model_matrix())
+        self.program['m_model'].write(self.mob.movable.position.get_model_matrix())
 
     def render(self):
         self.set_uniform()

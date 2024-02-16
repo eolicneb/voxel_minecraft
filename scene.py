@@ -19,11 +19,14 @@ class Scene:
 
     def register_mob(self, mob_id, mob):
         self.mobs[mob_id] = mob
+        mob.on_init()
 
     def pop_mob(self, mob_id):
         if mob_id not in self.mobs:
             return
-        return self.mobs.pop(mob_id)
+        mob = self.mobs.pop(mob_id)
+        mob.on_delete()
+        return mob
 
     def update(self):
         self.world.update()
@@ -47,3 +50,7 @@ class Scene:
         self.app.ctx.enable(mgl.CULL_FACE)
 
         self.voxel_marker.render()
+
+    def handle_event(self, event):
+        for mob in self.mobs.values():
+            mob.handle_event(event)

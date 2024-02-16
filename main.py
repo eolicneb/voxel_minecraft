@@ -1,5 +1,9 @@
+from collections import deque
+
+from events import Event
 from mobile import Mobile
 from mobs.bird import Bird
+from mobs.spawner import MobSpawner
 from physics import PhysicsEngine
 from settings import *
 import moderngl as mgl
@@ -32,6 +36,8 @@ class VoxelEngine:
         pg.event.set_grab(True)
         pg.mouse.set_visible(False)
 
+        self.events_queue = deque()
+
         self.is_running = True
         self.on_init()
 
@@ -39,37 +45,49 @@ class VoxelEngine:
         self.textures = Textures(self)
         self.player = Player(self)
         self.shader_program = ShaderProgram(self)
-        self.bird = Bird(self)
+        # self.bird = Bird(self)
         self.scene = Scene(self)
         self.physics = PhysicsEngine(self.scene.world)
+        self.spawner = MobSpawner(self)
+        self.spawner.register_mob_seed("bird")
 
         self.physics.register_movable(self.player)
-        self.scene.register_mob(self.bird.identifier, self.bird)
-        self.physics.register_movable(self.bird.movable)
+        # self.scene.register_mob(self.bird.identifier, self.bird)
+        # self.physics.register_movable(self.bird.movable)
 
     def update(self):
         self.delta_time = self.clock.tick()
 
         self.physics.update()
-        self.shader_program.update()
+        self.player.camera.update()
+        self.spawner.update()
         self.scene.update()
+        self.shader_program.update()
 
         self.time = pg.time.get_ticks() * 0.001
         pg.display.set_caption(f'{self.clock.get_fps():5.0f} FPS '
-                               f' player is_standing: {self.player.action_controller.is_standing}'
-                               f' [{self.player.accel.y}]')
+                               f' [events {len(self.events_queue)}]'
+                               f' [Mobs: {len(self.spawner.mobs)}')
 
     def render(self):
         self.ctx.clear(color=BG_COLOR)
         self.scene.render()
-        # self.bird.render()
         pg.display.flip()
+
+    def publish_event(self, event: Event):
+        self.events_queue.append(event)
 
     def handle_events(self):
         for event in pg.event.get():
             if event.type == pg.QUIT or (event.type == pg.KEYDOWN and event.key == pg.K_ESCAPE):
                 self.is_running = False
             self.physics.handle_event(event=event)
+        for event in self.events_queue:
+            self.player.handle_event(event)
+            self.spawner.handle_event(event)
+            self.scene.handle_event(event)
+            self.physics.handle_event(event)
+        self.events_queue.clear()
 
     def run(self):
         while self.is_running:

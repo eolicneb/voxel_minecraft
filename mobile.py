@@ -11,12 +11,12 @@ class Mobile:
         self.pitch = pitch
 
         self._rot = glm.mat4()
+        self._rot_horiz = glm.mat4()
 
     def update_rotation(self):
         rot = glm.mat4(1.0)
-        rot = glm.rotate(rot, self.yaw, -Y)
-        rot = glm.rotate(rot, self.pitch, Z)
-        self._rot = rot
+        self._rot_horiz = glm.rotate(rot, self.yaw, -Y)
+        self._rot = glm.rotate(self._rot_horiz, self.pitch, Z)
 
     @property
     def x(self):
@@ -56,6 +56,15 @@ class Mobile:
 
     def rotate(self, vec: glm.vec3):
         return (self._rot * vec).xyz
+
+    def rotate_planar(self, vec: glm.vec3):
+        return (self._rot_horiz * vec).xyz
+
+    def get_model_matrix(self):
+        # m_model = self._rot
+        m_model = glm.translate(glm.mat4(1.0), self.location) * self._rot
+        # m_model = glm.translate(m_model, glm.vec3(3, 15, 0))
+        return m_model
 
     def rotate_pitch(self, delta_y):
         self.pitch -= delta_y
@@ -146,6 +155,9 @@ class Movable:
     def speed_forward(self, vel_vector):
         self.velocity.location = self.position.rotate(vel_vector)
 
+    def speed_horizontal(self, vel_vector):
+        self.velocity.location = self.position.rotate_planar(vel_vector)
+
     def set_tick(self, delta_t: float):
         self.delta_t = delta_t
 
@@ -153,6 +165,7 @@ class Movable:
         self.position += self.velocity * self.delta_t
         self.velocity += self.accel * self.delta_t
         self.position.pitch = glm.clamp(self.position.pitch, -PITCH_MAX, PITCH_MAX)
+        self.position.yaw %= (2 * math.pi)
         self.position.update()
         self.velocity.update()
         self.accel.update()

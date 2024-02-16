@@ -1,5 +1,7 @@
 from settings import *
 
+from time import time
+
 
 class ActionController:
     def __init__(self, movable, *,
@@ -43,10 +45,14 @@ class ActionController:
         self.is_jumping = False
 
     def jump(self):
-        if not self.jump_velocity:
+        if not self.jump_velocity or not self.is_standing:
+            print(f"{time():.1f} Couldnt jump")
             return
+        print(f"{time():.1f} jumping")
         self.is_jumping = True
         self.movable.velocity.location.y = self.jump_velocity
+        self.is_standing = False
+        self.update()
 
     def fly(self):
         self.is_flying = True

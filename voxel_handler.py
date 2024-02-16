@@ -24,7 +24,7 @@ class VoxelHandler:
             result = self.get_voxel_id(self.voxel_world_pos + self.voxel_normal)
 
             # is the new place empty?
-            if not result[0]:
+            if not result[0] and result[-1]:
                 _, voxel_index, _, chunk = result
                 chunk.voxels[voxel_index] = self.new_voxel_id
                 chunk.mesh.rebuild()

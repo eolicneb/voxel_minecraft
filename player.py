@@ -30,7 +30,6 @@ class Player(Movable):
         self.keyboard_speed_control()
         # self.keyboard_control()
         self.mouse_control()
-        self.set_tick(self.app.delta_time)
         super().update()
         if self.position != old_pos:
             self.camera.update()
@@ -84,12 +83,15 @@ class Player(Movable):
                     new_vel.y += 1
                 if key_state[self.pg.K_e]:
                     new_vel.y -= 1
-            speed = PLAYER_SPEED * self.app.delta_time
+            speed = PLAYER_SPEED
             if self.action_controller.is_swimming:
                 speed *= .3  # TODO move to settings
             if any(new_vel):
                 new_vel = glm.normalize(new_vel)
-            self.speed_forward(new_vel * speed)
+            if self.action_controller.is_standing:
+                self.speed_horizontal(new_vel * speed)
+            else:
+                self.speed_forward(new_vel * speed)
         if self.action_controller.is_standing:
             if key_state[self.pg.K_SPACE]:
                 self.action_controller.jump()
